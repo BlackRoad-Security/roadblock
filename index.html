@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roadblock — Zero-Trust Security | BlackRoad OS</title>
+<meta name="description" content="4-layer network defense: Cloudflare edge, WireGuard mesh, Pi-hole DNS, per-service auth. Zero open ports architecture.">
+<meta name="theme-color" content="#000000">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --gradient: linear-gradient(90deg, #FF6B2B, #FF2255, #CC00AA, #8844FF, #4488FF, #00D4FF);
+  --bg: #000000; --surface: #0a0a0a; --border: #1a1a1a; --text: #e0e0e0;
+  --text-dim: #888888; --heading: #ffffff;
+  --font-heading: 'Space Grotesk', sans-serif; --font-mono: 'JetBrains Mono', monospace;
+}
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-heading); line-height: 1.7; overflow-x: hidden; }
+.gradient-text { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.9); border-bottom: 1px solid var(--border); }
+nav .logo { font-family: var(--font-heading); font-weight: 700; font-size: 1.4rem; color: var(--heading); text-decoration: none; }
+nav .logo span { font-weight: 300; color: var(--text-dim); }
+nav .nav-links { display: flex; gap: 2rem; align-items: center; }
+nav .nav-links a { color: var(--text-dim); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.3s; }
+nav .nav-links a:hover { color: var(--heading); }
+
+.btn-primary { display: inline-block; padding: 0.6rem 1.5rem; background: var(--gradient); color: #000; font-weight: 600; font-size: 0.9rem; border: none; border-radius: 6px; text-decoration: none; cursor: pointer; transition: opacity 0.3s; }
+.btn-primary:hover { opacity: 0.9; }
+.btn-secondary { display: inline-block; padding: 0.6rem 1.5rem; background: transparent; color: var(--text); font-weight: 500; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 6px; text-decoration: none; cursor: pointer; transition: border-color 0.3s, color 0.3s; }
+.btn-secondary:hover { border-color: #444; color: var(--heading); }
+
+.hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 8rem 2rem 4rem; position: relative; }
+.hero::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 800px; height: 800px; background: radial-gradient(ellipse at center, rgba(255,34,85,0.06) 0%, transparent 70%); pointer-events: none; }
+.hero-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem; border: 1px solid var(--border); border-radius: 100px; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 2rem; font-family: var(--font-mono); }
+.hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #00ff88; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.hero h1 { font-family: var(--font-heading); font-size: clamp(3rem, 7vw, 6rem); font-weight: 700; line-height: 1.1; color: var(--heading); margin-bottom: 1.5rem; max-width: 900px; }
+.hero .subtitle { font-size: clamp(1.1rem, 2vw, 1.4rem); color: var(--text-dim); max-width: 650px; margin-bottom: 3rem; line-height: 1.8; }
+.hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+.hero-stats { display: flex; gap: 3rem; margin-top: 4rem; padding-top: 3rem; border-top: 1px solid var(--border); }
+.hero-stats .stat { text-align: center; }
+.hero-stats .stat-value { font-family: var(--font-mono); font-size: 2rem; font-weight: 700; color: var(--heading); }
+.hero-stats .stat-label { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.3rem; }
+
+section { padding: 6rem 2rem; max-width: 1200px; margin: 0 auto; }
+section h2 { font-family: var(--font-heading); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: var(--heading); margin-bottom: 1rem; }
+section .section-sub { font-size: 1.1rem; color: var(--text-dim); max-width: 600px; margin-bottom: 3rem; }
+.gradient-line { height: 1px; background: var(--gradient); opacity: 0.3; margin: 0 auto; max-width: 1200px; }
+
+.features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+.feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; transition: border-color 0.3s; }
+.feature-card:hover { border-color: #333; }
+.feature-card .icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin-bottom: 1.2rem; background: #111; border: 1px solid var(--border); }
+.feature-card h3 { font-family: var(--font-heading); font-size: 1.2rem; font-weight: 600; color: var(--heading); margin-bottom: 0.8rem; }
+.feature-card p { color: var(--text-dim); font-size: 0.95rem; line-height: 1.7; }
+
+/* Defense Layers */
+.defense-layers { display: flex; flex-direction: column; gap: 0; margin-top: 2rem; max-width: 900px; margin-left: auto; margin-right: auto; }
+.defense-layer {
+  background: var(--surface); border: 1px solid var(--border); padding: 1.8rem 2rem;
+  display: grid; grid-template-columns: 120px 1fr 160px; gap: 1.5rem; align-items: center;
+}
+.defense-layer:first-child { border-radius: 12px 12px 0 0; }
+.defense-layer:last-child { border-radius: 0 0 12px 12px; }
+.defense-layer + .defense-layer { border-top: none; }
+.defense-layer .layer-num { font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); }
+.defense-layer .layer-name { font-family: var(--font-heading); font-weight: 600; color: var(--heading); font-size: 1.1rem; }
+.defense-layer .layer-desc { font-size: 0.9rem; color: var(--text-dim); line-height: 1.6; }
+.defense-layer .layer-status { text-align: right; }
+.defense-layer .layer-status .status-badge {
+  display: inline-block; padding: 0.2rem 0.8rem; border-radius: 4px; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600;
+}
+.defense-layer .layer-status .status-badge.active { background: rgba(0,255,136,0.1); color: #00ff88; }
+.defense-layer .layer-status .status-badge.armed { background: rgba(68,136,255,0.1); color: #4488FF; }
+
+/* Threat Log */
+.threat-log { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; margin-top: 2rem; max-width: 900px; margin-left: auto; margin-right: auto; }
+.threat-log h4 { font-family: var(--font-heading); font-weight: 600; color: var(--heading); margin-bottom: 1rem; }
+.threat-entry { display: flex; gap: 1rem; padding: 0.6rem 0; border-bottom: 1px solid #0d0d0d; align-items: center; font-size: 0.85rem; }
+.threat-entry:last-child { border-bottom: none; }
+.threat-entry .timestamp { font-family: var(--font-mono); font-size: 0.75rem; color: #555; min-width: 80px; }
+.threat-entry .severity { font-family: var(--font-mono); font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 3px; min-width: 55px; text-align: center; }
+.threat-entry .severity.critical { background: rgba(255,34,85,0.15); color: #FF2255; }
+.threat-entry .severity.high { background: rgba(255,107,43,0.15); color: #FF6B2B; }
+.threat-entry .severity.medium { background: rgba(255,189,46,0.15); color: #ffbd2e; }
+.threat-entry .severity.low { background: rgba(0,255,136,0.15); color: #00ff88; }
+.threat-entry .desc { color: var(--text-dim); flex: 1; }
+.threat-entry .action { font-family: var(--font-mono); font-size: 0.75rem; color: #00ff88; }
+
+/* Code Demo */
+.code-demo { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin: 3rem auto; max-width: 850px; }
+.code-demo .code-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.8rem 1.2rem; border-bottom: 1px solid var(--border); }
+.code-demo .code-header .dot-r { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
+.code-demo .code-header .dot-y { width: 12px; height: 12px; border-radius: 50%; background: #ffbd2e; }
+.code-demo .code-header .dot-g { width: 12px; height: 12px; border-radius: 50%; background: #28c840; }
+.code-demo .code-header span { margin-left: auto; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim); }
+.code-demo pre { padding: 1.5rem; font-family: var(--font-mono); font-size: 0.85rem; line-height: 1.8; color: var(--text); overflow-x: auto; }
+.code-demo .keyword { color: #CC00AA; }
+.code-demo .string { color: #00D4FF; }
+.code-demo .comment { color: #555; }
+.code-demo .function { color: #FF6B2B; }
+
+/* Audit Stats */
+.audit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+.audit-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; }
+.audit-card .audit-value { font-family: var(--font-mono); font-size: 2rem; font-weight: 700; color: var(--heading); }
+.audit-card .audit-label { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.3rem; }
+.audit-card .audit-trend { font-family: var(--font-mono); font-size: 0.75rem; margin-top: 0.5rem; }
+.audit-card .audit-trend.good { color: #00ff88; }
+.audit-card .audit-trend.warn { color: #ffbd2e; }
+
+/* Pricing */
+.pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+.pricing-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem; position: relative; }
+.pricing-card.featured { border-color: #333; }
+.pricing-card.featured::before { content: 'Most Popular'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); padding: 0.3rem 1rem; background: var(--gradient); color: #000; font-size: 0.75rem; font-weight: 700; border-radius: 100px; font-family: var(--font-mono); }
+.pricing-card .plan-name { font-family: var(--font-heading); font-size: 1.2rem; font-weight: 600; color: var(--heading); margin-bottom: 0.5rem; }
+.pricing-card .plan-price { font-family: var(--font-mono); font-size: 2.5rem; font-weight: 700; color: var(--heading); margin-bottom: 0.3rem; }
+.pricing-card .plan-price span { font-size: 1rem; color: var(--text-dim); font-weight: 400; }
+.pricing-card .plan-desc { font-size: 0.9rem; color: var(--text-dim); margin-bottom: 2rem; }
+.pricing-card .plan-features { list-style: none; display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 2rem; }
+.pricing-card .plan-features li { font-size: 0.9rem; color: var(--text); display: flex; align-items: center; gap: 0.6rem; }
+.pricing-card .plan-features li::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #00ff88; flex-shrink: 0; }
+
+.tech-list { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 2rem; }
+.tech-tag { padding: 0.5rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim); }
+
+.install-block { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; margin: 3rem auto; max-width: 600px; }
+.install-block h4 { font-family: var(--font-heading); font-size: 1rem; font-weight: 600; color: var(--heading); margin-bottom: 1rem; }
+.install-block pre { font-family: var(--font-mono); font-size: 0.85rem; color: #00D4FF; line-height: 1.8; }
+
+.cta-section { text-align: center; padding: 6rem 2rem; max-width: 800px; margin: 0 auto; }
+.cta-section h2 { margin-bottom: 1rem; }
+.cta-section p { color: var(--text-dim); font-size: 1.1rem; margin-bottom: 2rem; }
+.cta-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+footer { padding: 3rem 2rem; border-top: 1px solid var(--border); text-align: center; }
+footer .footer-brand { font-family: var(--font-heading); font-weight: 700; font-size: 1.2rem; color: var(--heading); margin-bottom: 0.5rem; }
+footer .footer-tagline { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1.5rem; }
+footer .footer-links { display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap; }
+footer .footer-links a { font-size: 0.8rem; color: var(--text-dim); text-decoration: none; transition: color 0.3s; }
+footer .footer-links a:hover { color: var(--heading); }
+footer .footer-copy { margin-top: 2rem; font-size: 0.75rem; color: #444; }
+
+@media (max-width: 768px) {
+  nav .nav-links { display: none; }
+  .hero-stats { flex-direction: column; gap: 1.5rem; }
+  .features-grid, .pricing-grid, .audit-grid { grid-template-columns: 1fr; }
+  .defense-layer { grid-template-columns: 1fr; gap: 0.5rem; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#" class="logo">Roadblock <span>by BlackRoad</span></a>
+  <div class="nav-links">
+    <a href="#defense">Defense Layers</a>
+    <a href="#features">Features</a>
+    <a href="#audit">Audit</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#install" class="btn-primary">Deploy Now</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-badge"><span class="dot"></span> v1.0 — Zero-Trust Security</div>
+  <h1>Zero open ports. <span class="gradient-text">Zero trust.</span></h1>
+  <p class="subtitle">
+    Roadblock is a 4-layer defense system for self-hosted infrastructure.
+    Cloudflare edge, WireGuard mesh, Pi-hole DNS filtering, per-service authentication.
+    CrowdSec-powered intrusion detection. Every connection audited, every packet accounted for.
+  </p>
+  <div class="hero-actions">
+    <a href="#install" class="btn-primary">Deploy Roadblock</a>
+    <a href="#defense" class="btn-secondary">See the layers</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat"><div class="stat-value">4</div><div class="stat-label">Defense Layers</div></div>
+    <div class="stat"><div class="stat-value">0</div><div class="stat-label">Open Ports</div></div>
+    <div class="stat"><div class="stat-value">120+</div><div class="stat-label">Domains Blocked</div></div>
+    <div class="stat"><div class="stat-value">12/12</div><div class="stat-label">WireGuard Peers</div></div>
+  </div>
+</section>
+
+<div class="gradient-line"></div>
+
+<!-- Defense Layers -->
+<section id="defense">
+  <h2>Four layers of <span class="gradient-text">defense</span></h2>
+  <p class="section-sub">Every packet passes through multiple security boundaries. Compromise one layer, the others hold.</p>
+
+  <div class="defense-layers">
+    <div class="defense-layer">
+      <div>
+        <div class="layer-num">Layer 1</div>
+        <div class="layer-name">Caddy TLS Edge</div>
+      </div>
+      <div class="layer-desc">Automatic HTTPS with Let's Encrypt. TLS 1.3 minimum. HTTP/2 push. Reverse proxy to internal services. Rate limiting and DDoS mitigation at the edge. 151 domains managed.</div>
+      <div class="layer-status"><span class="status-badge active">ACTIVE</span></div>
+    </div>
+    <div class="defense-layer">
+      <div>
+        <div class="layer-num">Layer 2</div>
+        <div class="layer-name">WireGuard Mesh</div>
+      </div>
+      <div class="layer-desc">Full mesh VPN connecting all nodes. 12/12 peers connected. All internal traffic encrypted in transit. No service listens on public interfaces. Mutual authentication between every node.</div>
+      <div class="layer-status"><span class="status-badge active">12/12 PEERS</span></div>
+    </div>
+    <div class="defense-layer">
+      <div>
+        <div class="layer-num">Layer 3</div>
+        <div class="layer-name">Pi-hole DNS</div>
+      </div>
+      <div class="layer-desc">DNS-level filtering blocks 120+ malicious and tracking domains. All DNS queries logged and auditable. Custom blocklists for known threat actors. Prevents data exfiltration via DNS tunneling.</div>
+      <div class="layer-status"><span class="status-badge armed">120+ BLOCKED</span></div>
+    </div>
+    <div class="defense-layer">
+      <div>
+        <div class="layer-num">Layer 4</div>
+        <div class="layer-name">Per-Service Auth</div>
+      </div>
+      <div class="layer-desc">Every service requires authentication. Ed25519 key-based identity. No shared credentials. Session tokens with automatic rotation. Audit log for every access attempt.</div>
+      <div class="layer-status"><span class="status-badge active">ENFORCED</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- Live Threat Log -->
+<section>
+  <h2>Live <span class="gradient-text">threat detection</span></h2>
+  <p class="section-sub">CrowdSec-powered intrusion detection with community threat intelligence.</p>
+
+  <div class="threat-log">
+    <h4>Recent Security Events</h4>
+    <div class="threat-entry">
+      <span class="timestamp">14:23:07</span>
+      <span class="severity critical">CRIT</span>
+      <span class="desc">SSH brute force from 185.224.x.x (42 attempts in 30s)</span>
+      <span class="action">BANNED 24h</span>
+    </div>
+    <div class="threat-entry">
+      <span class="timestamp">14:21:45</span>
+      <span class="severity high">HIGH</span>
+      <span class="desc">HTTP path traversal attempt on /etc/passwd</span>
+      <span class="action">BLOCKED</span>
+    </div>
+    <div class="threat-entry">
+      <span class="timestamp">14:19:22</span>
+      <span class="severity medium">MED</span>
+      <span class="desc">DNS query for known C2 domain (malware.example.com)</span>
+      <span class="action">SINKHOLED</span>
+    </div>
+    <div class="threat-entry">
+      <span class="timestamp">14:15:03</span>
+      <span class="severity low">LOW</span>
+      <span class="desc">Port scan detected from 103.x.x.x (SYN scan, 1000 ports)</span>
+      <span class="action">LOGGED</span>
+    </div>
+    <div class="threat-entry">
+      <span class="timestamp">14:12:18</span>
+      <span class="severity high">HIGH</span>
+      <span class="desc">WordPress xmlrpc.php exploit attempt (CVE-2023-2732)</span>
+      <span class="action">BLOCKED</span>
+    </div>
+    <div class="threat-entry">
+      <span class="timestamp">14:08:44</span>
+      <span class="severity medium">MED</span>
+      <span class="desc">TLS certificate mismatch from internal node (expired cert)</span>
+      <span class="action">RENEWED</span>
+    </div>
+  </div>
+</section>
+
+<div class="gradient-line"></div>
+
+<!-- Features -->
+<section id="features">
+  <h2>Security that <span class="gradient-text">works while you sleep</span></h2>
+  <p class="section-sub">Automated defense that requires zero daily attention.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="icon">&#128737;</div>
+      <h3>CrowdSec IDS</h3>
+      <p>Community-driven intrusion detection. Behavioral analysis catches novel attacks. Shared threat intelligence from thousands of nodes worldwide. Automatic ban decisions with configurable thresholds.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#128272;</div>
+      <h3>Certificate Management</h3>
+      <p>Automatic TLS certificate provisioning and renewal via Let's Encrypt. Certificate transparency monitoring. Revocation alerts. Support for wildcard certificates across all 20 root domains.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#128202;</div>
+      <h3>Audit Logging</h3>
+      <p>Every connection, authentication attempt, and configuration change is logged to an append-only SQLite database. FTS5 search across all events. Export to SIEM-compatible formats for compliance.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#128293;</div>
+      <h3>Firewall Rules Engine</h3>
+      <p>Declarative firewall configuration. Rules versioned in git. Automatic rollback on lockout detection. Separate rulesets per node with fleet-wide policy inheritance.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#127760;</div>
+      <h3>DNS Security</h3>
+      <p>PowerDNS with DNSSEC signing. Pi-hole for recursive filtering. DNS-over-HTTPS support. Prevents DNS cache poisoning, tunneling, and rebinding attacks. All queries audited.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#128064;</div>
+      <h3>Network Monitoring</h3>
+      <p>Real-time traffic analysis across all WireGuard peers. Anomaly detection for unusual data volumes. Connection tracking per service. Bandwidth graphs with historical comparison.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Code Demo -->
+<section>
+  <div class="code-demo">
+    <div class="code-header">
+      <div class="dot-r"></div><div class="dot-y"></div><div class="dot-g"></div>
+      <span>roadblock.yml</span>
+    </div>
+    <pre><span class="comment"># Roadblock — Zero-Trust Security Configuration</span>
+<span class="keyword">layers</span>:
+  <span class="function">edge</span>:
+    <span class="keyword">provider</span>: <span class="string">caddy</span>
+    <span class="keyword">tls</span>: <span class="string">auto</span>                    <span class="comment"># Let's Encrypt</span>
+    <span class="keyword">min_tls</span>: <span class="string">"1.3"</span>
+    <span class="keyword">rate_limit</span>: <span class="string">100/min</span>
+    <span class="keyword">domains</span>: <span class="string">151</span>
+
+  <span class="function">mesh</span>:
+    <span class="keyword">provider</span>: <span class="string">wireguard</span>
+    <span class="keyword">topology</span>: <span class="string">full-mesh</span>
+    <span class="keyword">peers</span>: <span class="string">12</span>
+    <span class="keyword">keepalive</span>: <span class="string">25s</span>
+    <span class="keyword">allowed_ips</span>: <span class="string">10.0.0.0/24</span>
+
+  <span class="function">dns</span>:
+    <span class="keyword">provider</span>: <span class="string">pi-hole</span>
+    <span class="keyword">blocklists</span>: <span class="string">120+ domains</span>
+    <span class="keyword">dnssec</span>: <span class="string">enabled</span>
+    <span class="keyword">upstream</span>: <span class="string">powerdns (self-hosted)</span>
+
+  <span class="function">auth</span>:
+    <span class="keyword">method</span>: <span class="string">ed25519</span>
+    <span class="keyword">session_ttl</span>: <span class="string">1h</span>
+    <span class="keyword">rotation</span>: <span class="string">automatic</span>
+    <span class="keyword">audit</span>: <span class="string">sqlite + fts5</span>
+
+<span class="keyword">ids</span>:
+  <span class="keyword">engine</span>: <span class="string">crowdsec</span>
+  <span class="keyword">scenarios</span>: <span class="string">[ssh-bf, http-probing, dns-tunneling]</span>
+  <span class="keyword">ban_duration</span>: <span class="string">24h</span>
+  <span class="keyword">community_blocklists</span>: <span class="string">enabled</span></pre>
+  </div>
+</section>
+
+<div class="gradient-line"></div>
+
+<!-- Audit Dashboard -->
+<section id="audit">
+  <h2>Real-time <span class="gradient-text">security metrics</span></h2>
+  <p class="section-sub">Know your attack surface at a glance.</p>
+
+  <div class="audit-grid">
+    <div class="audit-card">
+      <div class="audit-value">0</div>
+      <div class="audit-label">Open Ports (Public)</div>
+      <div class="audit-trend good">All services behind WG mesh</div>
+    </div>
+    <div class="audit-card">
+      <div class="audit-value">847</div>
+      <div class="audit-label">Attacks Blocked (24h)</div>
+      <div class="audit-trend warn">+12% vs yesterday</div>
+    </div>
+    <div class="audit-card">
+      <div class="audit-value">151</div>
+      <div class="audit-label">TLS Certificates Active</div>
+      <div class="audit-trend good">0 expiring in 7d</div>
+    </div>
+    <div class="audit-card">
+      <div class="audit-value">12/12</div>
+      <div class="audit-label">WireGuard Peers Online</div>
+      <div class="audit-trend good">Full mesh connected</div>
+    </div>
+    <div class="audit-card">
+      <div class="audit-value">99.97%</div>
+      <div class="audit-label">Uptime (30d)</div>
+      <div class="audit-trend good">13min total downtime</div>
+    </div>
+    <div class="audit-card">
+      <div class="audit-value">4.2M</div>
+      <div class="audit-label">DNS Queries Filtered (30d)</div>
+      <div class="audit-trend good">120+ domains blocked</div>
+    </div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section id="pricing">
+  <h2>Protect your <span class="gradient-text">infrastructure</span></h2>
+  <p class="section-sub">Open core. Free for personal use. Enterprise support available.</p>
+
+  <div class="pricing-grid">
+    <div class="pricing-card">
+      <div class="plan-name">Community</div>
+      <div class="plan-price">Free</div>
+      <div class="plan-desc">Full security stack for personal and small team infrastructure.</div>
+      <ul class="plan-features">
+        <li>4-layer defense architecture</li>
+        <li>CrowdSec IDS with community blocklists</li>
+        <li>WireGuard mesh (up to 10 peers)</li>
+        <li>Pi-hole DNS filtering</li>
+        <li>Automatic TLS via Let's Encrypt</li>
+        <li>SQLite audit logging</li>
+        <li>CLI management interface</li>
+      </ul>
+      <a href="#install" class="btn-secondary" style="width:100%;text-align:center;">Download Free</a>
+    </div>
+    <div class="pricing-card featured">
+      <div class="plan-name">Enterprise</div>
+      <div class="plan-price">$79 <span>/month</span></div>
+      <div class="plan-desc">Managed security with SLA, compliance, and dedicated support.</div>
+      <ul class="plan-features">
+        <li>Everything in Community, plus:</li>
+        <li>Unlimited WireGuard peers</li>
+        <li>SOC2 compliance report generation</li>
+        <li>SIEM export (Splunk, ELK, Datadog)</li>
+        <li>Custom CrowdSec scenarios</li>
+        <li>Automated vulnerability scanning</li>
+        <li>24/7 incident response support</li>
+        <li>Quarterly security review</li>
+      </ul>
+      <a href="mailto:alexa@blackroad.io" class="btn-primary" style="width:100%;text-align:center;">Contact Sales</a>
+    </div>
+  </div>
+</section>
+
+<!-- Tech -->
+<section>
+  <h2>Built on <span class="gradient-text">proven security tools</span></h2>
+  <div class="tech-list">
+    <span class="tech-tag">CrowdSec</span>
+    <span class="tech-tag">WireGuard</span>
+    <span class="tech-tag">Pi-hole</span>
+    <span class="tech-tag">Caddy</span>
+    <span class="tech-tag">PowerDNS</span>
+    <span class="tech-tag">Let's Encrypt</span>
+    <span class="tech-tag">Ed25519</span>
+    <span class="tech-tag">SQLite + FTS5</span>
+    <span class="tech-tag">nftables</span>
+    <span class="tech-tag">DNSSEC</span>
+    <span class="tech-tag">Tor Hidden Services</span>
+    <span class="tech-tag">fail2ban (legacy)</span>
+    <span class="tech-tag">iptables</span>
+    <span class="tech-tag">TLS 1.3</span>
+  </div>
+</section>
+
+<div class="gradient-line"></div>
+
+<section id="install">
+  <div class="install-block">
+    <h4>Deploy in 5 minutes</h4>
+    <pre>
+<span style="color:#555"># Install Roadblock</span>
+curl -fsSL https://blackroad.io/install/roadblock | bash
+
+<span style="color:#555"># Initialize security profile</span>
+roadblock init --profile zero-trust
+
+<span style="color:#555"># Configure defense layers</span>
+roadblock layer add edge    --provider caddy
+roadblock layer add mesh    --provider wireguard
+roadblock layer add dns     --provider pihole
+roadblock layer add auth    --provider ed25519
+
+<span style="color:#555"># Enable CrowdSec IDS</span>
+roadblock ids enable --engine crowdsec
+
+<span style="color:#555"># Run security audit</span>
+roadblock audit --full
+    </pre>
+  </div>
+</section>
+
+<div class="cta-section">
+  <h2>Lock it down. <span class="gradient-text">Own it forever.</span></h2>
+  <p>Your infrastructure should be a fortress, not a rental. Roadblock gives you military-grade security that runs on a Raspberry Pi.</p>
+  <div class="cta-actions">
+    <a href="#install" class="btn-primary">Deploy Roadblock Free</a>
+    <a href="https://github.com/BlackRoad-Security/roadblock" class="btn-secondary">View on GitHub</a>
+  </div>
+</div>
+
+<div class="gradient-line"></div>
+
+<footer>
+  <div class="footer-brand">BlackRoad OS</div>
+  <div class="footer-tagline">Pave Tomorrow.</div>
+  <div class="footer-links">
+    <a href="https://blackroad.io">Home</a>
+    <a href="https://github.com/BlackRoad-Security">GitHub</a>
+    <a href="https://roundtrip.blackroad.io">RoundTrip Chat</a>
+    <a href="https://docs.blackroad.io">Documentation</a>
+    <a href="mailto:alexa@blackroad.io">Contact</a>
+  </div>
+  <div class="footer-copy">Copyright 2025-2026 BlackRoad OS, Inc. All rights reserved. Delaware C-Corp.</div>
+</footer>
+
+</body>
+</html>
